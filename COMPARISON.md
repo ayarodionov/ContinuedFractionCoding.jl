@@ -76,11 +76,16 @@ number-theoretic reasons, cannot offer.
 
 ## Reproducing
 
-`compare.jl` needs both packages in one environment:
+`compare.jl` runs in the `compare/` environment, which declares
+PadicCoding alongside this package. PadicCoding is not a dependency of
+ContinuedFractionCoding itself, so it lives here rather than in the
+top-level `Project.toml`.
 
 ```
-julia -e 'using Pkg; Pkg.activate("compare-env"; shared=true);
-          Pkg.develop(path="path/to/PadicCoding.jl");
-          Pkg.develop(path="path/to/ContinuedFractionCoding.jl")'
-julia --project=@compare-env compare.jl
+julia --project=compare -e 'using Pkg; Pkg.develop(path=pwd()); Pkg.instantiate()'
+julia --project=compare compare.jl
 ```
+
+The `develop` step points the environment at this checkout; it becomes
+unnecessary once ContinuedFractionCoding is available from the General
+registry, leaving just `Pkg.instantiate()`.
