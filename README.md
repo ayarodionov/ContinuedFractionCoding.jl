@@ -1,5 +1,6 @@
 # ContinuedFractionCoding.jl
 
+[![CI](https://github.com/ayarodionov/ContinuedFractionCoding.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/ayarodionov/ContinuedFractionCoding.jl/actions/workflows/CI.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Julia](https://img.shields.io/badge/Julia-1.10%2B-9558B2.svg)](https://julialang.org)
 
