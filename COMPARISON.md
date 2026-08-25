@@ -1,5 +1,7 @@
 # CF coding vs p-adic arithmetic coding
 
+[![CI](https://github.com/ayarodionov/ContinuedFractionCoding.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/ayarodionov/ContinuedFractionCoding.jl/actions/workflows/CI.yml)
+
 A head-to-head of [ContinuedFractionCoding.jl](README.md) against
 [PadicCoding.jl](https://github.com/ayarodionov/PadicCoding.jl), run by
 `compare.jl` on five sources of 20,000 symbols each (5,000 for the π
