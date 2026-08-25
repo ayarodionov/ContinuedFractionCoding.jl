@@ -11,7 +11,7 @@
 #      continued fraction with an experimental horizon.
 #
 # Run with:  julia --project demos/constants_demo.jl
-using CFCoding
+using ContinuedFractionCoding
 using Printf
 
 function big_quotients(num::BigInt, den::BigInt, nmax::Int)

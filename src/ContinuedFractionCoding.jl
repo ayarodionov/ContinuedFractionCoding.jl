@@ -1,5 +1,5 @@
 """
-    CFCoding
+    ContinuedFractionCoding
 
 Continued-fraction coding, just for fun.
 
@@ -20,7 +20,7 @@ other source it is a fixed code, not an adaptive one.
 The stream is self-delimiting: an Elias-gamma header carries the message
 length, followed by the dyadic point's bits (trailing zeros dropped).
 """
-module CFCoding
+module ContinuedFractionCoding
 
 using Random
 

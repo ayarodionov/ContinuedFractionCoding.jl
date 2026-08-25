@@ -7,7 +7,7 @@
 # passes through 34..127 it spells characters.
 #
 # Run with:  julia --project demos/collatz_demo.jl
-using CFCoding
+using ContinuedFractionCoding
 using Printf
 
 function collatz(n::Int)

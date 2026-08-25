@@ -1,6 +1,6 @@
 # CF coding vs p-adic arithmetic coding
 
-A head-to-head of [CFCoding.jl](README.md) against
+A head-to-head of [ContinuedFractionCoding.jl](README.md) against
 [PadicCoding.jl](https://github.com/ayarodionov/PadicCoding.jl), run by
 `compare.jl` on five sources of 20,000 symbols each (5,000 for the π
 quotients). The p-adic coder uses a static model built from the message's
@@ -81,6 +81,6 @@ number-theoretic reasons, cannot offer.
 ```
 julia -e 'using Pkg; Pkg.activate("compare-env"; shared=true);
           Pkg.develop(path="path/to/PadicCoding.jl");
-          Pkg.develop(path="path/to/CFCoding.jl")'
+          Pkg.develop(path="path/to/ContinuedFractionCoding.jl")'
 julia --project=@compare-env compare.jl
 ```

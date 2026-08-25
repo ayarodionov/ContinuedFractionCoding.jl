@@ -7,7 +7,7 @@
 # them should cost almost exactly GK_ENTROPY bits per quotient.
 #
 # Run with:  julia --project demos/pi_demo.jl
-using CFCoding
+using ContinuedFractionCoding
 using Printf
 
 j = 20_000                                    # binary digits of pi - 3 used
@@ -17,7 +17,7 @@ m = BigInt(floor((BigFloat(pi) - 3) * (big(1) << j)))   # m/2^j ~ pi - 3
 # ---- 1. decode pi's bits as a CF code stream ----
 n = 30
 bits = BitVector()
-CFCoding.push_gamma!(bits, n + 1)
+ContinuedFractionCoding.push_gamma!(bits, n + 1)
 for i in j-1:-1:0
     push!(bits, (m >> i) & 1 == 1)
 end

@@ -1,4 +1,4 @@
-# CFCoding.jl
+# ContinuedFractionCoding.jl
 
 Continued-fraction coding — a just-for-fun companion to
 [PadicCoding.jl](https://github.com/ayarodionov/PadicCoding.jl).
@@ -45,7 +45,7 @@ for the slowest-converging continued fraction.)
 ## Usage
 
 ```julia
-using CFCoding
+using ContinuedFractionCoding
 
 msg  = [rand_gauss_kuzmin() for _ in 1:1000]   # its natural source
 bits = cf_encode(msg)                          # BitVector

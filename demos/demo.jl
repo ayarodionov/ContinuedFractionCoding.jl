@@ -1,6 +1,6 @@
 # Demo: continued-fraction coding of a Gauss-Kuzmin source (its natural
 # source) versus mismatched sources.  Run with:  julia --project demos/demo.jl
-using CFCoding
+using ContinuedFractionCoding
 using Random, Printf
 
 rng = MersenneTwister(2026)

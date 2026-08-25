@@ -1,6 +1,6 @@
 # Head-to-head: CF coding (fixed code, Gauss-Kuzmin-optimal) vs p-adic
 # arithmetic coding (model-based, entropy-optimal for any static model).
-using PadicCoding, CFCoding
+using PadicCoding, ContinuedFractionCoding
 using Random, Printf
 
 rng = MersenneTwister(2026)

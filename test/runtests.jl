@@ -1,7 +1,7 @@
-using CFCoding
+using ContinuedFractionCoding
 using Test, Random
 
-@testset "CFCoding" begin
+@testset "ContinuedFractionCoding" begin
 
     @testset "gauss-kuzmin distribution" begin
         # partial sums telescope to the exact CDF 1 + log2((K+1)/(K+2))

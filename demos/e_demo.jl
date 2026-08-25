@@ -4,7 +4,7 @@
 # e is as atypical a real as they come, and the coder's rate shows it.
 #
 # Run with:  julia --project demos/e_demo.jl
-using CFCoding
+using ContinuedFractionCoding
 using Printf
 
 j = 50_000                                    # binary digits of e - 2 used
@@ -14,7 +14,7 @@ m = BigInt(floor((BigFloat(MathConstants.e) - 2) * (big(1) << j)))  # m/2^j ~ e 
 # ---- 1. decode e's bits as a CF code stream ----
 n = 30
 bits = BitVector()
-CFCoding.push_gamma!(bits, n + 1)
+ContinuedFractionCoding.push_gamma!(bits, n + 1)
 for i in j-1:-1:0
     push!(bits, (m >> i) & 1 == 1)
 end

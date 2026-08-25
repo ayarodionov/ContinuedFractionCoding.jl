@@ -1,4 +1,4 @@
-name = "CFCoding"
+name = "ContinuedFractionCoding"
 uuid = "6bc8d66c-7cef-4a98-b067-ca14ca3298c2"
 authors = ["Anatoly Rodionov <ayarodionov@gmail.com>"]
 version = "0.1.0"

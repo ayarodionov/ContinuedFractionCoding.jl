@@ -10,7 +10,7 @@
 # its digits are the physics).
 #
 # Run with:  julia --project demos/planck_demo.jl
-using CFCoding
+using ContinuedFractionCoding
 using Printf
 
 as_text(q) = join(map(a -> 32 <= a - 1 <= 126 ? Char(a - 1) : '.', q))
