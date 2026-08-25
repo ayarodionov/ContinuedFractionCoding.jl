@@ -1,5 +1,8 @@
 # ContinuedFractionCoding.jl
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Julia](https://img.shields.io/badge/Julia-1.10%2B-9558B2.svg)](https://julialang.org)
+
 Continued-fraction coding — a just-for-fun companion to
 [PadicCoding.jl](https://github.com/ayarodionov/PadicCoding.jl).
 
