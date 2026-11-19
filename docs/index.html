@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ContinuedFractionCoding.jl Animations</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+:root { --bg: #f2f5f7; --surface: #fff; --ink: #15202b; --muted: #5a6876; --line: #d3dbe2; --accent: #c98400; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0e141a; --surface: #161f28; --ink: #e5ebf0; --muted: #93a1ae; --line: #2a3642; --accent: #f0b43c; color-scheme: dark; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 "IBM Plex Sans", system-ui, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 40px max(16px, env(safe-area-inset-left)) 56px; display: flex; flex-direction: column; gap: 22px; }
+h1 { font: 700 32px "Space Grotesk", system-ui, sans-serif; margin: 0; }
+p { margin: 0; max-width: 68ch; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+a.card { display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; color: inherit; text-decoration: none; }
+a.card:hover, a.card:focus-visible { border-color: var(--accent); outline: none; }
+a.card img { width: 100%; border-radius: 6px; border: 1px solid var(--line); }
+a.card b { font: 700 19px "Space Grotesk", system-ui, sans-serif; }
+footer a { color: var(--accent); }
+</style>
+<main>
+  <h1>Continued-fraction coding, animated</h1>
+  <p>Step-by-step runs of the coder from
+    <a href="https://github.com/ayarodionov/ContinuedFractionCoding.jl">ContinuedFractionCoding.jl</a>. Encoding narrows [0, 1) to the
+    cylinder of a continued fraction and writes a binary point inside it; decoding reads the quotients back with the Gauss map.
+    The traces match the Julia coder bit for bit.</p>
+  <div class="grid">
+    <a class="card" href="cf.html"><img src="img/cf-enc.gif" alt="Continued-fraction encoder animation" loading="lazy"><b>Encode</b><span>Cylinders, the Gauss coordinate, and the dyadic point.</span></a>
+    <a class="card" href="cf.html"><img src="img/cf-dec.gif" alt="Continued-fraction decoder animation" loading="lazy"><b>Decode</b><span>Elias-gamma header, then the Gauss map t ← 1/t − ⌊1/t⌋.</span></a>
+  </div>
+  <footer><p>Companion to <a href="https://ayarodionov.github.io/PadicCoding.jl/">the p-adic coder animations</a>.</p></footer>
+</main>

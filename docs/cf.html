@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Continued-Fraction Coder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one column; controls → stage (unit interval, magnified cylinder, Gauss coordinate) → narration + state readouts side by side → model table + notes. Same visual language as the PadicCoding.jl pages. */
+:root {
+  --bg: #f2f5f7;
+  --surface: #ffffff;
+  --ink: #15202b;
+  --muted: #5a6876;
+  --line: #d3dbe2;
+  --accent: #c98400;      /* settled bits / chosen point */
+  --accent-soft: #fbefd6;
+  --lpath: #2457d6;
+  --rpath: #c8324f;
+  --s1: #2a9d8f; --s2: #8a63d2; --s3: #e07a3f; --s4: #4f9d4a; --s5: #c8508f; --s6: #3d7fc4; --s7: #8a939c;
+  --band: rgba(201,132,0,.14);
+  --f-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e141a; --surface: #161f28; --ink: #e5ebf0; --muted: #93a1ae; --line: #2a3642;
+  --accent: #f0b43c; --accent-soft: #3a2f17; --lpath: #6e9bff; --rpath: #ff6f8a;
+  --s1: #3cc0b0; --s2: #a988f0; --s3: #f29a62; --s4: #74c26c; --s5: #e276ad; --s6: #6aa6e8; --s7: #7d8893;
+  --band: rgba(240,180,60,.16); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #161f28; --ink: #e5ebf0; --muted: #93a1ae; --line: #2a3642;
+  --accent: #f0b43c; --accent-soft: #3a2f17; --lpath: #6e9bff; --rpath: #ff6f8a;
+  --s1: #3cc0b0; --s2: #a988f0; --s3: #f29a62; --s4: #74c26c; --s5: #e276ad; --s6: #6aa6e8; --s7: #7d8893;
+  --band: rgba(240,180,60,.16); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 18px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: 30px; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 500; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+.lede { margin: 6px 0 0; max-width: 72ch; color: var(--muted); }
+.lede b { color: var(--ink); font-weight: 600; }
+code, .mono { font-family: var(--f-mono); font-size: .92em; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: end; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+input[type=text], select {
+  font-family: var(--f-mono); font-size: 14px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+input#msgIn { width: 22ch; max-width: 80vw; }
+input.code { width: 30ch; max-width: 80vw; letter-spacing: .06em; }
+button { font-family: var(--f-body); font-weight: 600; font-size: 14px; border-radius: 6px; padding: 7px 13px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.transport { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.transport input[type=range] { width: 180px; max-width: 40vw; accent-color: var(--accent); }
+.err { color: var(--rpath); font-size: 13px; min-height: 1em; flex-basis: 100%; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; padding: 2px; background: var(--surface); gap: 2px; }
+.seg button { border: 0; padding: 6px 14px; background: transparent; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 6px 4px; }
+.svgbox { overflow-x: auto; }
+svg { display: block; width: 100%; min-width: 620px; height: auto; }
+.bar-bg { fill: var(--bg); stroke: var(--line); }
+.tick { stroke: var(--muted); }
+.ticklbl { fill: var(--muted); font-family: var(--f-mono); font-size: 12px; text-anchor: middle; }
+.gut { fill: var(--muted); font-family: var(--f-body); font-size: 12px; text-anchor: end; }
+.cap { fill: var(--muted); font-family: var(--f-mono); font-size: 11px; text-anchor: middle; }
+.halo { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.ival { fill: none; stroke: var(--ink); stroke-width: 2; }
+.ivalfill { fill: var(--ink); opacity: .08; }
+.slicelbl { font-family: var(--f-display); font-weight: 700; font-size: 13px; text-anchor: middle; fill: #fff; }
+.biglbl { font-family: var(--f-mono); font-weight: 600; font-size: 12px; text-anchor: middle; }
+.band { fill: var(--band); stroke: var(--accent); stroke-dasharray: 4 3; }
+.conn { stroke: var(--muted); stroke-width: 1; fill: none; opacity: .55; }
+.conn.hot { stroke: var(--accent); stroke-width: 2; opacity: 1; }
+.endlbl { font-family: var(--f-mono); font-size: 11px; font-weight: 600; }
+.zlbl { fill: var(--ink); font-family: var(--f-mono); font-size: 12px; font-weight: 600; text-anchor: middle; }
+.dy { stroke: var(--accent); }
+.dylbl { fill: var(--accent); font-family: var(--f-mono); font-size: 11px; text-anchor: middle; }
+.pt { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.gline { stroke: var(--ink); stroke-width: 2.5; }
+.gmark { fill: var(--ink); }
+.glbl { fill: var(--ink); font-family: var(--f-mono); font-weight: 600; font-size: 12px; text-anchor: middle; }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 760px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.stepno { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.phase { display: inline-block; font-family: var(--f-mono); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); margin-left: 8px; }
+.narr h3 { font-family: var(--f-display); font-size: 19px; font-weight: 700; margin: 6px 0 6px; text-wrap: balance; }
+.narr p { margin: 0 0 6px; max-width: 65ch; }
+.kv { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 12px; font-family: var(--f-mono); font-size: 13.5px; align-items: baseline; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.bits .pre { background: var(--accent-soft); color: var(--accent); font-weight: 600; border-radius: 3px; }
+.cl { color: var(--lpath); } .cr { color: var(--rpath); }
+.out { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; min-height: 30px; }
+.chip { font-family: var(--f-mono); font-size: 14px; font-weight: 600; width: 24px; height: 28px; display: grid; place-items: center;
+  border-radius: 4px; background: var(--bg); border: 1px solid var(--line); }
+.chip.hdr { border-color: var(--lpath); color: var(--lpath); }
+.chip.new { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.chip.hdr.new { background: var(--lpath); border-color: var(--lpath); }
+.chip.pend { border-style: dashed; border-color: var(--accent); color: var(--accent); background: transparent; }
+.chip.used { opacity: .4; }
+.pendnote { font-size: 13px; color: var(--muted); margin-top: 6px; min-height: 1.2em; }
+.msg { display: flex; flex-wrap: wrap; gap: 4px; }
+.msg span { font-family: var(--f-display); font-weight: 700; font-size: 15px; min-width: 28px; padding: 0 6px; height: 28px; display: grid; place-items: center;
+  border-radius: 4px; color: #fff; opacity: .35; }
+.msg span.cur { opacity: 1; outline: 2px solid var(--ink); outline-offset: 1px; }
+.msg span.done { opacity: .8; }
+.msg .none { color: var(--muted); font-size: 13px; opacity: 1; font-family: var(--f-body); font-weight: 400; padding: 0; }
+table { border-collapse: collapse; font-size: 14px; width: 100%; }
+th, td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 500; }
+td.m { font-family: var(--f-mono); font-size: 13px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); padding: 2px 10px 8px; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+.notes p { margin: 0 0 8px; max-width: 75ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.capture header, .capture .controls, .capture #more { display: none; }
+.capture .wrap { padding-block: 12px; gap: 12px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Continued-Fraction Coder</h1>
+    <p class="lede">Animated runs of <code>cf_encode</code> / <code>cf_decode</code> from ContinuedFractionCoding.jl. A message of
+      integers <b>a₁, a₂, … ≥ 1</b> is read as the continued fraction <code>x = [0; a₁, a₂, …]</code>. <b>Encode</b> narrows
+      <code>[0, 1)</code> to the <i>cylinder</i> of reals whose expansion starts with the message, then writes a short binary point
+      inside it after an Elias-gamma length header. <b>Decode</b> rebuilds that point and reads the quotients back with the Gauss map
+      <code>t ← 1/t − ⌊1/t⌋</code>. Both traces match the Julia coder bit for bit.</p>
+  </header>
+
+  <section class="controls" aria-label="Input">
+    <div class="seg" role="group" aria-label="Mode"><button id="mEnc" aria-pressed="true">Encode</button><button id="mDec" aria-pressed="false">Decode</button></div>
+    <div class="field"><label for="msgIn">Message (quotients, or "text")</label><input type="text" id="msgIn" value="3 1 4 1 5" maxlength="80" spellcheck="false" autocomplete="off"></div>
+    <div class="field"><label for="preset">Examples</label>
+      <select id="preset">
+        <option value="">choose…</option>
+        <option value="3 1 2">[0; 3, 1, 2] from the README</option>
+        <option value="7 15 1 292 1 1">π − 3 = [0; 7, 15, 1, 292, …]</option>
+        <option value="1 2 1 1 4 1 1 6">e − 2 = [0; 1, 2, 1, 1, 4, …]</option>
+        <option value="1 1 1 1 1 1 1 1">golden ratio − 1 = [0; 1, 1, 1, …]</option>
+        <option value="2 2 2 2 2 2">√2 − 1 = [0; 2, 2, 2, …]</option>
+        <option value='"Hi"'>"Hi" as bytes + 1</option>
+        <option value="gk">random Gauss–Kuzmin draw</option>
+      </select></div>
+    <div class="field" id="codeField" hidden><label for="codeIn">Code (bits)</label><input type="text" id="codeIn" class="code" spellcheck="false" autocomplete="off"></div>
+    <button id="fillBtn" hidden title="Replace the code with the encoding of the message">Use message code</button>
+    <button class="primary" id="runBtn" title="Apply the message or code, then play from the start (Enter)">▶ Run</button>
+    <div class="transport" aria-label="Playback">
+      <button id="resetBtn" title="Back to start">⏮</button>
+      <button id="backBtn" title="Previous step (←)">◀</button>
+      <button id="playBtn" title="Play / pause (space)" style="min-width:5.5em">▶ Play</button>
+      <button id="fwdBtn" title="Next step (→)">▶|</button>
+      <input type="range" id="scrub" min="0" max="1" value="0" aria-label="Step">
+      <select id="speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+    </div>
+    <div class="err" id="err"></div>
+  </section>
+
+  <section class="stage">
+    <div class="legend">
+      <span><i style="border-color:var(--ink);border-top-width:2px"></i>current cylinder</span>
+      <span><i style="border-color:var(--accent);border-top-style:dashed"></i>region being zoomed</span>
+      <span><i style="border-color:var(--muted);border-top-width:1px"></i>same piece in x and in t</span>
+      <span id="ptLegend"><i style="border-color:var(--accent)"></i>dyadic point / code</span>
+      <span id="xLegend" hidden><i style="border-color:var(--ink);border-top-width:4px"></i>decoder point x, its Gauss coordinate t</span>
+    </div>
+    <div class="svgbox"><svg id="svg" viewBox="0 0 1000 350" role="img" aria-label="Unit interval, the current cylinder magnified, and its Gauss coordinate">
+      <defs>
+        <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--s7);stroke-width:2.5"/></pattern>
+        <clipPath id="clip2"><rect id="clip2r"/></clipPath>
+      </defs>
+      <g id="static"></g><g id="dyn"></g></svg></div>
+  </section>
+
+  <section class="lower">
+    <div class="card narr" aria-live="polite">
+      <div><span class="stepno" id="stepNo"></span><span class="phase" id="phase"></span></div>
+      <h3 id="nTitle"></h3>
+      <div id="nText"></div>
+    </div>
+    <div class="card">
+      <h2 id="msgH">Message</h2>
+      <div class="msg" id="msgView" style="margin-bottom:12px"></div>
+      <dl class="kv" id="kv"></dl>
+      <h2 style="margin-top:14px" id="outH">Output</h2>
+      <div class="out" id="out"></div>
+      <div class="pendnote" id="pendNote"></div>
+    </div>
+  </section>
+
+  <section class="lower" id="more">
+    <div class="card">
+      <h2>The model the coder implies</h2>
+      <table><thead><tr><th>a</th><th>t-piece</th><th>P_GK(a)</th><th>−log₂ P</th></tr></thead><tbody id="model"></tbody></table>
+    </div>
+    <div class="card notes">
+      <h2>Reading the picture</h2>
+      <p><b>Top:</b> the unit interval, with the current cylinder highlighted. It shrinks fast (a quotient <code>a</code> costs about <code>2 log₂ a</code> bits), so
+        the <b>middle</b> bar shows it magnified to full width.</p>
+      <p><b>Bottom:</b> the Gauss coordinate <code>t = Tⁿ(x)</code>, where <code>T(t) = 1/t − ⌊1/t⌋</code>. Inside the cylinder <code>[0; a₁, …, aₙ]</code>,
+        <code>x = (hₙ + t·hₙ₋₁) / (kₙ + t·kₙ₋₁)</code> from the convergents. In <code>t</code> the next split is always the same: quotient
+        <code>a</code> owns <code>(1/(a+1), 1/a]</code>. The grey lines carry each piece from <code>t</code> to <code>x</code>; at odd depth they cross,
+        because <code>x</code> decreases as <code>t</code> grows.</p>
+      <p>Measured with the Gauss measure <code>dt / ((1+t) ln 2)</code>, the piece of <code>a</code> has probability
+        <code>log₂(1 + 1/(a(a+2)))</code> at every depth. That is why this coder is exact for the Gauss–Kuzmin source and a fixed code for everything else.</p>
+      <p>The coder is a batch coder: it builds the whole cylinder with exact <code>BigInt</code> convergents and writes its point at the end.
+        The dashed chips show which leading bits are already settled along the way.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+/*TRACE*/
+const bitlen = x => (x === 0n ? 0 : x.toString(2).length);
+const log2big = x => { const s = Math.max(0, bitlen(x) - 60); return Math.log2(Number(x >> BigInt(s))) + s; };
+function ratio(a, b) {                    // a/b as a Number, safe for huge BigInts
+  const neg = (a < 0n) !== (b < 0n);
+  if (a < 0n) a = -a; if (b < 0n) b = -b;
+  const s = Math.max(bitlen(a), bitlen(b)) - 1000;
+  if (s > 0) { a >>= BigInt(s); b >>= BigInt(s); }
+  const v = b === 0n ? Infinity : Number(a) / Number(b);
+  return neg ? -v : v;
+}
+const gkProb = a => Math.log2(1 + 1 / (a * (a + 2)));
+const GK_ENTROPY = Math.PI ** 2 / (6 * Math.LN2 ** 2);
+function gammaBits(N) { const b = N.toString(2); return [...'0'.repeat(b.length - 1) + b].map(Number); }
+
+// Cylinder [0; a1, ..., an]: x(t) = (h + t hp) / (k + t kp), t in [0, 1).  x grows with t iff n is even.
+function level(h, k, hp, kp, n) {
+  const inc = n % 2 === 0;
+  const A = [h, k], B = [h + hp, k + kp];
+  const [lo, hi] = inc ? [A, B] : [B, A];
+  return { n, h, k, hp, kp, ln: lo[0], ld: lo[1], hn: hi[0], hd: hi[1], dir: inc ? 1 : -1, q: ratio(kp, k),
+    lo: ratio(lo[0], lo[1]), hi: ratio(hi[0], hi[1]), lw: -(log2big(k) + log2big(k + kp)) };
+}
+// Position of Gauss coordinate t inside the cylinder, 0 = lo end, 1 = hi end
+function relPos(lv, t) { const f = t * (1 + lv.q) / (1 + t * lv.q); return lv.dir > 0 ? f : 1 - f; }
+function childRange(lv, a) { const p1 = relPos(lv, 1 / (a + 1)), p2 = relPos(lv, 1 / a); return [Math.min(p1, p2), Math.max(p1, p2)]; }
+// Leading binary digits shared by every point of the open cylinder (lo, hi)
+function settled(lv, max = 400) {
+  let p = 0;
+  while (p < max) {
+    const P = 1n << BigInt(p + 1);
+    if (lv.ln * P / lv.ld !== (lv.hn * P + lv.hd - 1n) / lv.hd - 1n) break;
+    p++;
+  }
+  return p ? (lv.ln * (1n << BigInt(p)) / lv.ld).toString(2).padStart(p, '0') : '';
+}
+// Dyadic ticks m / 2^L (L = j-2 .. j) that fall inside [lo, hi], as positions relative to the cylinder
+function dyadicTicks(lv, j) {
+  const ticks = [], gapn = lv.hn * lv.ld - lv.ln * lv.hd;
+  for (let L = Math.max(0, j - 2); L <= j; L++) {
+    const P = 1n << BigInt(L);
+    const m1 = lv.ln * P / lv.ld, m2 = (lv.hn * P + lv.hd - 1n) / lv.hd;
+    for (let m = m1; m <= m2; m++) {
+      const rel = ratio((m * lv.ld - lv.ln * P) * lv.hd, gapn * P);
+      if (rel >= 0 && rel <= 1) ticks.push({ L, m, rel, lvl: j - L });
+    }
+  }
+  return ticks;
+}
+
+function buildEncodeTrace(msg) {
+  let h = 0n, k = 1n, hp = 1n, kp = 0n;
+  let lv = level(h, k, hp, kp, 0);
+  const frames = [];
+  const snap = o => frames.push(Object.assign({ lv, set: settled(lv) }, o));
+  snap({ kind: 'start', t: -1 });
+  for (let i = 0; i < msg.length; i++) {
+    const a = msg[i], A = BigInt(a), parent = lv;
+    const zoom = childRange(parent, a);
+    [h, hp] = [A * h + hp, h]; [k, kp] = [A * k + kp, k];
+    const child = level(h, k, hp, kp, i + 1);
+    const cost = parent.lw - child.lw;
+    snap({ kind: 'split', t: i, a, zoom, cost });
+    lv = child;
+    snap({ kind: 'narrow', t: i, a, parent, zoom, cost });
+  }
+  const n = msg.length;
+  // dyadic_point: smallest j with 2^-j < hi - lo, m = floor(lo 2^j) + 1, then drop trailing zeros
+  const gapn = lv.hn * lv.ld - lv.ln * lv.hd, gapd = lv.hd * lv.ld;
+  let j = Math.max(bitlen(gapd) - bitlen(gapn), 0);
+  while ((gapn << BigInt(j)) <= gapd) j++;
+  let m = (lv.ln << BigInt(j)) / lv.ld + 1n;
+  const j0 = j, m0 = m;
+  const prel = ratio((m * lv.ld - (lv.ln << BigInt(j))) * lv.hd, gapn << BigInt(j)), pabs = ratio(m, 1n << BigInt(j));
+  const ticks = dyadicTicks(lv, j0);
+  snap({ kind: 'grid', t: n, j0, m0, ticks, prel, pabs });
+  while (m % 2n === 0n && j > 0) { m >>= 1n; j--; }
+  const hdr = gammaBits(n + 1);
+  const body = [...m.toString(2).padStart(j, '0')].map(Number);
+  snap({ kind: 'final', t: n, j0, m0, j, m, hdr, body, ticks, prel, pabs });
+  const gk = msg.reduce((s, a) => s - Math.log2(gkProb(a)), 0);
+  snap({ kind: 'done', t: n + 1, j, m, hdr, body, prel, pabs, gk });
+  return { frames, bits: hdr.concat(body), msg };
+}
+
+function buildDecodeTrace(bits, maxSyms = 40) {
+  const frames = [], dec = [];
+  let h = 0n, k = 1n, hp = 1n, kp = 0n;
+  let lv = level(h, k, hp, kp, 0);
+  let num = 0n, den = 1n, pos = 0, hdrLen = 0;
+  const snap = o => frames.push(Object.assign({ lv, tn: num, td: den, tv: ratio(num, den), pos, hdrLen, dec: dec.slice(), read: 0 }, o));
+  const fail = why => { snap({ kind: 'done', ok: false, why }); return { frames, dec, bits, ok: false }; };
+  let z = 0;
+  while (z < bits.length && !bits[z]) z++;
+  if (z + z >= bits.length) return fail('The Elias-gamma header runs past the end of the code.');
+  let N = 0n;
+  for (let i = z; i <= z + z; i++) N = 2n * N + BigInt(bits[i]);
+  pos = hdrLen = 2 * z + 1;
+  const n = Number(N) - 1;
+  snap({ kind: 'header', z, N, n, read: hdrLen });
+  if (n > maxSyms) return fail(`The header announces ${n} quotients; this page stops at ${maxSyms}.`);
+  const j = bits.length - pos;
+  for (let i = pos; i < bits.length; i++) num = 2n * num + BigInt(bits[i]);
+  den = 1n << BigInt(j);
+  const m = num;
+  pos = bits.length;
+  snap({ kind: 'point', j, m, n, read: j, xv: ratio(m, den) });
+  const xv = ratio(m, den);
+  for (let i = 0; i < n; i++) {
+    if (!(num > 0n && num < den)) return fail(`After ${i} quotient${i === 1 ? '' : 's'} the point has reached ${num === 0n ? '0' : '1'}: the stream is corrupt or truncated.`);
+    const A = den / num, r = den % num;
+    if (!(r > 0n || i === n - 1)) return fail(`The Gauss map hit 0 after ${i + 1} of ${n} quotients: the stream is corrupt or truncated.`);
+    const a = Number(A), parent = lv, ptn = num, ptd = den;
+    const zoom = childRange(parent, a);
+    snap({ kind: 'split', t: i, a, r, n, zoom, xv });
+    [h, hp] = [A * h + hp, h]; [k, kp] = [A * k + kp, k];
+    lv = level(h, k, hp, kp, i + 1);
+    dec.push(a);
+    [num, den] = [r, num];
+    snap({ kind: 'narrow', t: i, a, r, n, parent, zoom, ptn, ptd, ptv: ratio(ptn, ptd), xv });
+  }
+  snap({ kind: 'done', ok: true, n, xv });
+  return { frames, dec, bits, ok: true };
+}
+/*END*/
+
+const $ = id => document.getElementById(id);
+const X0 = 80, X1 = 940, W = X1 - X0;
+const Y1 = 36, H1 = 22, Y2 = 122, H2 = 44, Y3 = 246, H3 = 34;
+const KMAX = 12;                          // pieces drawn one by one; the rest is the hatched tail
+const SV = a => `var(--s${Math.min(a, 7)})`;
+let tr, msg = null, mode = 'enc', cur = 0, prog = 1, playing = false, last = 0, dwell = 0, frozen = false;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const cfs = q => q.length ? `[0; ${q.join(', ')}]` : '[0, 1)';
+const SUP = n => String(n).split('').map(c => c === '-' ? '⁻' : '⁰¹²³⁴⁵⁶⁷⁸⁹'[c]).join('');
+const fmtNum = x => x === 0 ? '0' : (Math.abs(x) >= 1e-4 && Math.abs(x) < 1e6) ? String(+x.toPrecision(8)) : x.toExponential(3).replace('e', '·10^').replace(/\^\+?(-?\d+)/, (_, e) => SUP(e));
+const fr = (n, d) => { const s = `${n}/${d}`; return s.length <= 23 ? s : '≈ ' + fmtNum(ratio(n, d)); };
+const zoomTxt = lw => -lw < 16 ? '×' + Math.round(2 ** -lw).toLocaleString('en-US') : `×2${SUP(Math.round(-lw))}`;
+const widthTxt = lw => lw === 0 ? '1' : `2<sup>−${(-lw).toFixed(2)}</sup>` + (lw > -40 ? ` ≈ ${fmtNum(2 ** lw)}` : '');
+const binOf = (n, d, len) => (n * (1n << BigInt(len)) / d).toString(2).padStart(len, '0');
+const tX = t => X0 + t * W;
+
+function drawStatic() {
+  let s = `<text class="gut" x="${X0 - 10}" y="${Y1 + 15}">x ∈ [0, 1)</text>`;
+  s += `<rect class="bar-bg" x="${X0}" y="${Y1}" width="${W}" height="${H1}" rx="3"/>`;
+  for (const [v, lb] of [[0, '0'], [1 / 4, '¼'], [1 / 3, '⅓'], [1 / 2, '½'], [1, '1']]) {
+    s += `<line class="tick" x1="${tX(v)}" x2="${tX(v)}" y1="${Y1 - 4}" y2="${Y1}"/><text class="ticklbl" x="${tX(v)}" y="${Y1 - 8}">${lb}</text>`;
+  }
+  s += `<text class="gut" x="${X0 - 10}" y="${Y2 + 20}">cylinder</text>`;
+  s += `<rect class="bar-bg" x="${X0}" y="${Y2}" width="${W}" height="${H2}" rx="3"/>`;
+  s += `<text class="gut" x="${X0 - 10}" y="${Y3 + 15}">Gauss t</text><text class="gut" x="${X0 - 10}" y="${Y3 + 30}" style="font-size:10.5px">t = Tⁿ(x)</text>`;
+  s += `<rect class="bar-bg" x="${X0}" y="${Y3}" width="${W}" height="${H3}" rx="3"/>`;
+  for (const [v, lb] of [[0, '0'], [1 / 4, '¼'], [1 / 3, '⅓'], [1 / 2, '½'], [1, '1']]) {
+    s += `<line class="tick" x1="${tX(v)}" x2="${tX(v)}" y1="${Y3 + H3}" y2="${Y3 + H3 + 6}"/><text class="ticklbl" x="${tX(v)}" y="${Y3 + H3 + 20}">${lb}</text>`;
+  }
+  s += `<text class="cap" x="${X0 + W / 2}" y="${Y3 + H3 + 42}">quotient a owns t ∈ (1/(a+1), 1/a] at every depth · next depth: t ← 1/t − a</text>`;
+  $('static').innerHTML = s;
+  const c = $('clip2r'); c.setAttribute('x', X0); c.setAttribute('y', Y2 - 30); c.setAttribute('width', W); c.setAttribute('height', H2 + 60);
+}
+
+// window [L, L+Wd] (cylinder-relative) zooming from [0,1] to [pa,pb]; geometric in width so big quotients zoom smoothly
+function zoomWin([pa, pb], e) { const Wd = (pb - pa) ** e; return [pa - pa * (1 - e) * Wd, Wd]; }
+
+function marker(x, y, h, lbl, cls) {
+  return `<line x1="${x}" x2="${x}" y1="${y - 3}" y2="${y + h + 3}" class="gline"/><path class="gmark" d="M${x} ${y + h + 4}l-6 10h12z"/>` +
+    (lbl ? `<text class="glbl halo" x="${x}" y="${y + h + 27}">${lbl}</text>` : '');
+}
+
+function render() {
+  const F = tr.frames[cur], e = ease(prog);
+  const narrowing = F.kind === 'narrow';
+  const lvD = narrowing ? F.parent : F.lv;               // level whose coordinates the middle bar uses
+  const [L, Wd] = narrowing ? zoomWin(F.zoom, e) : [0, 1];
+  const X2 = rel => X0 + (rel - L) / Wd * W;
+  const hasSplit = F.kind === 'split' || narrowing;
+  const splitOp = F.kind === 'split' ? e : 1;
+  let s = '';
+
+  // top bar: current window in absolute x, and the magnifier trapezoid
+  const span = lvD.hi - lvD.lo;
+  const aL = lvD.lo + L * span, aR = lvD.lo + (L + Wd) * span;
+  let xa = tX(aL), xb = tX(aR);
+  if (xb - xa < 3) { const c = (xa + xb) / 2; xa = c - 1.5; xb = c + 1.5; }
+  s += `<path d="M${xa} ${Y1 + H1}L${xb} ${Y1 + H1}L${X1} ${Y2}L${X0} ${Y2}Z" style="fill:var(--ink);opacity:.05"/>`;
+  s += `<path d="M${xa} ${Y1 + H1}L${X0} ${Y2}M${xb} ${Y1 + H1}L${X1} ${Y2}" style="stroke:var(--ink);stroke-width:1;opacity:.3"/>`;
+  s += `<rect x="${xa}" y="${Y1}" width="${xb - xa}" height="${H1}" style="fill:var(--ink);opacity:.85" rx="1"/>`;
+  const lwNow = narrowing ? F.parent.lw + Math.log2(Wd) : F.lv.lw;
+  const pre = mode === 'enc' ? msg.slice(0, narrowing ? F.t + 1 : F.lv.n) : F.dec;
+  s += `<text class="zlbl halo" x="${X0 + W / 2}" y="${(Y1 + H1 + Y2) / 2 + 8}">${cfs(pre)}  magnified ${zoomTxt(lwNow)}</text>`;
+
+  // middle bar: the cylinder, its pieces, the dyadic grid
+  let mid = `<rect class="ivalfill" x="${X0}" y="${Y2}" width="${W}" height="${H2}"/>`;
+  let conn = '';
+  if (hasSplit) {
+    const pieces = [];
+    for (let a = 1; a <= KMAX; a++) pieces.push({ a, t1: 1 / (a + 1), t2: 1 / a });
+    pieces.push({ a: 0, t1: 0, t2: 1 / (KMAX + 1) });
+    if (F.a > KMAX) pieces.push({ a: F.a, t1: 1 / (F.a + 1), t2: 1 / F.a });
+    for (const p of pieces) {
+      const hot = p.a === F.a;
+      let o = splitOp * (hot ? 1 : .5);
+      if (narrowing && !hot) o = .5 * (1 - e);
+      if (o < .01) continue;
+      const r1 = relPos(lvD, p.t1), r2 = relPos(lvD, p.t2);
+      let x1 = X2(Math.min(r1, r2)), x2 = X2(Math.max(r1, r2));
+      if (hot && x2 - x1 < 2) { const c = (x1 + x2) / 2; x1 = c - 1; x2 = c + 1; }
+      const fill = p.a === 0 ? 'url(#hatch)' : SV(p.a);
+      mid += `<rect x="${x1}" y="${Y2}" width="${Math.max(.6, x2 - x1 - .6)}" height="${H2}" style="fill:${fill};opacity:${o}"/>`;
+      if (p.a && x2 - x1 > 15) mid += `<text class="slicelbl" x="${(x1 + x2) / 2}" y="${Y2 + H2 / 2 + 5}" style="opacity:${o}">${p.a}</text>`;
+      else if (hot) mid += `<text class="biglbl halo" x="${(x1 + x2) / 2}" y="${Y2 - 6}" style="fill:${SV(p.a)};opacity:${o}">a = ${p.a}</text>`;
+    }
+    // connectors t-piece boundaries → x
+    const co = F.kind === 'split' ? e : 1 - e;
+    if (co > .01) {
+      const bnd = [0, 1];
+      for (let a = 2; a <= KMAX + 1; a++) bnd.push(1 / a);
+      for (const t of bnd) {
+        const hot = F.a && (t === 1 / F.a || t === 1 / (F.a + 1));
+        const xm = X2(relPos(lvD, t));
+        if (xm < X0 - .5 || xm > X1 + .5) continue;
+        conn += `<path class="conn${hot ? ' hot' : ''}" d="M${tX(t)} ${Y3}L${xm} ${Y2 + H2}" style="opacity:${co * (hot ? 1 : .55)}"/>`;
+      }
+      if (F.a > KMAX) {
+        for (const t of [1 / F.a, 1 / (F.a + 1)]) conn += `<path class="conn hot" d="M${tX(t)} ${Y3}L${X2(relPos(lvD, t))} ${Y2 + H2}" style="opacity:${co}"/>`;
+      }
+    }
+  }
+  if (F.ticks && mode === 'enc') {
+    const o = F.kind === 'grid' ? e : 1;
+    for (const tk of F.ticks) {
+      const x = X2(tk.rel), len = 10 + 12 * (2 - tk.lvl);
+      mid += `<line class="dy" x1="${x}" x2="${x}" y1="${Y2 + H2}" y2="${Y2 + H2 - len}" style="stroke-width:${tk.lvl ? 1.2 : 2};opacity:${o}"/>`;
+      if (!tk.lvl) mid += `<text class="dylbl halo" x="${x}" y="${Y2 + H2 + 14}" style="opacity:${o}">${tk.m}/2${SUP(tk.L)}</text>`;
+    }
+  }
+  if (mode === 'enc' && F.prel !== undefined) {
+    const o = F.kind === 'grid' ? e : 1, x = X2(F.prel);
+    mid += `<g style="opacity:${o}"><line x1="${x}" x2="${x}" y1="${Y2 - 4}" y2="${Y2 + H2 + 4}" style="stroke:var(--accent);stroke-width:2.5"/><circle class="pt" cx="${x}" cy="${Y2 + H2 / 2}" r="6"/></g>`;
+  }
+  if (mode === 'dec' && F.xv !== undefined) {
+    const o = F.kind === 'point' ? e : 1;
+    const tv = narrowing ? F.ptv : F.tv;
+    const x = X2(relPos(lvD, tv));
+    mid += `<g style="opacity:${o}">${marker(x, Y2, H2, '', '')}</g>`;
+  }
+  s += `<g clip-path="url(#clip2)">${mid}</g>`;
+  s += `<rect class="ival" x="${X0}" y="${Y2}" width="${W}" height="${H2}" rx="2"/>`;
+  const dirNow = lvD.dir * (narrowing && e > .5 ? -1 : 1);
+  s += `<text class="gut" x="${X0 - 10}" y="${Y2 + 36}" style="font-family:var(--f-mono);font-size:11px">${dirNow > 0 ? 't →' : '← t'}</text>`;
+  s += `<text class="endlbl" x="${X0 + 3}" y="${Y2 + H2 + 14}" style="fill:var(--lpath);text-anchor:start">lo</text>`;
+  s += `<text class="endlbl" x="${X1 - 3}" y="${Y2 + H2 + 14}" style="fill:var(--rpath);text-anchor:end">hi</text>`;
+
+  // bottom bar: Gauss coordinate
+  let bot = '';
+  const po = hasSplit ? 1 : .35;
+  for (let a = 1; a <= KMAX; a++) {
+    const hot = hasSplit && a === F.a;
+    const o = hasSplit ? (F.kind === 'split' ? lerp(.35, hot ? 1 : .5, e) : (hot ? 1 : .5 * (1 - e) + .35 * e)) : po;
+    const x1 = tX(1 / (a + 1)), x2 = tX(1 / a);
+    bot += `<rect x="${x1}" y="${Y3}" width="${x2 - x1 - .6}" height="${H3}" style="fill:${SV(a)};opacity:${o}"/>`;
+    if (x2 - x1 > 15) bot += `<text class="slicelbl" x="${(x1 + x2) / 2}" y="${Y3 + H3 / 2 + 5}" style="opacity:${Math.min(1, o + .3)}">${a}</text>`;
+  }
+  bot += `<rect x="${X0}" y="${Y3}" width="${tX(1 / (KMAX + 1)) - X0 - .6}" height="${H3}" style="fill:url(#hatch);opacity:${po * .8}"/>`;
+  if (hasSplit && F.a > KMAX) {
+    const x1 = tX(1 / (F.a + 1)), x2 = Math.max(x1 + 2, tX(1 / F.a));
+    bot += `<rect x="${x1}" y="${Y3 - 3}" width="${x2 - x1}" height="${H3 + 6}" style="fill:${SV(F.a)}"/>`;
+    bot += `<text class="biglbl halo" x="${(x1 + x2) / 2}" y="${Y3 - 7}" style="fill:${SV(F.a)}">a = ${F.a}</text>`;
+  }
+  if (narrowing) {          // the Gauss map stretches the kept piece back over [0, 1)
+    const b1 = lerp(1 / (F.a + 1), 0, e), b2 = lerp(1 / F.a, 1, e);
+    bot += `<rect class="band" x="${tX(b1)}" y="${Y3 - 5}" width="${tX(b2) - tX(b1)}" height="${H3 + 10}" rx="4"/>`;
+  }
+  if (mode === 'dec' && F.xv !== undefined) {
+    const o = F.kind === 'point' ? e : 1;
+    const tv = narrowing ? lerp(F.ptv, F.tv, e) : F.tv;
+    bot += `<g style="opacity:${o}">${marker(tX(tv), Y3, H3, 't', '')}</g>`;
+  }
+  s += conn + bot;
+
+  // top bar markers: the point
+  if (mode === 'enc' && F.pabs !== undefined) {
+    const o = F.kind === 'grid' ? e : 1;
+    s += `<circle class="pt" cx="${tX(F.pabs)}" cy="${Y1 + H1 / 2}" r="5" style="opacity:${o}"/>`;
+  }
+  if (mode === 'dec' && F.xv !== undefined) {
+    const o = F.kind === 'point' ? e : 1;
+    s += `<g style="opacity:${o}"><line x1="${tX(F.xv)}" x2="${tX(F.xv)}" y1="${Y1 - 3}" y2="${Y1 + H1 + 3}" class="gline"/></g>`;
+  }
+  $('dyn').innerHTML = s;
+}
+
+function narrateEnc(F) {
+  const n = msg.length, lv = F.lv;
+  switch (F.kind) {
+    case 'start': return ['Start: all of [0, 1)', `<p>Every x in [0, 1) has a continued fraction <code>x = [0; a₁, a₂, …] = 1/(a₁ + 1/(a₂ + …))</code>. The reals whose expansion begins with given quotients form an interval, a <i>cylinder</i>.</p><p>Encoding <b>${cfs(msg)}</b> narrows [0, 1) to its cylinder one quotient at a time, then writes down a short binary point inside it.</p>`];
+    case 'split': {
+      const even = lv.n % 2 === 0, share = 2 ** -F.cost;
+      return [`Quotient ${F.t + 1} of ${n}: a = ${F.a}`, `<p>The cylinder ${cfs(msg.slice(0, F.t))} splits into one piece for each possible next quotient 1, 2, 3, …. In the Gauss coordinate t (bottom bar) the split never changes: quotient a owns <code>(1/(a+1), 1/a]</code>, so a = 1 takes the right half.</p>` +
+        `<p>${even ? 'At even depth x grows with t, so on the real line the pieces keep this order: a = 1 is rightmost.' : 'At odd depth x falls as t grows, so on the real line the pieces are mirrored: a = 1 is leftmost and the grey lines cross.'}</p>` +
+        `<p>The map from t to x squeezes the pieces unevenly: here a = ${F.a} gets ${(100 * share).toPrecision(3)}% of the cylinder. The Gauss–Kuzmin model gives it ${(100 * gkProb(F.a)).toPrecision(3)}%.</p>`];
+    }
+    case 'narrow': return [`Keep a = ${F.a}: ${cfs(msg.slice(0, F.t + 1))}`, `<p>The new cylinder lies between the convergent <code>h/k = ${fr(lv.h, lv.k)}</code> and the mediant <code>(h + h′)/(k + k′) = ${fr(lv.h + lv.hp, lv.k + lv.kp)}</code>. Its width is ${widthTxt(lv.lw)}.</p>` +
+      `<p>This quotient cost <b>${F.cost.toFixed(2)} bits</b>; the Gauss–Kuzmin model prices it at ${(-Math.log2(gkProb(F.a))).toFixed(2)} bits.</p>` +
+      `<p>In t, the Gauss map <code>t ← 1/t − ${F.a}</code> stretches the kept piece back over the whole bar, turning it around.</p>` +
+      (F.set ? `<p>Every point of the cylinder now starts <code>0.${F.set.length > 40 ? F.set.slice(0, 40) + '…' : F.set}₂</code>: ${pl(F.set.length, 'bit')} settled.</p>` : '<p>No binary digit is settled yet: the cylinder still straddles a dyadic boundary.</p>')];
+    case 'grid': return [`Choose a point on the 2${SUP('-' + F.j0)} grid`, `<p>The final cylinder has width ${widthTxt(lv.lw)}. The smallest j with 2<sup>−j</sup> below that width is <b>j = ${F.j0}</b>, so a multiple of 2<sup>−${F.j0}</sup> fits strictly inside.</p><p>The encoder takes <code>m = ⌊lo · 2^${F.j0}⌋ + 1 = ${F.m0}</code>. Ticks show the grids 2<sup>−${F.j0}</sup> (labelled) and the two coarser ones.</p>`];
+    case 'final': {
+      const strip = F.j0 - F.j;
+      return ['Write the code', (strip ? `<p><code>${F.m0}/2^${F.j0}</code> has ${pl(strip, 'trailing zero')}; dropping them gives <code>${F.m}/2^${F.j}</code>.</p>` : `<p><code>${F.m}/2^${F.j}</code> has no trailing zeros to drop.</p>`) +
+        `<p>The code is the Elias-gamma header for n + 1 = ${n + 1}: <code>${F.hdr.join('')}</code> (blue), which tells the decoder how many quotients to read, followed by the ${pl(F.j, 'bit')} of ${F.m}: <code>${F.body.join('')}</code>.</p>`];
+    }
+    case 'done': {
+      const B = F.hdr.length + F.body.length, ideal = -lv.lw;
+      return ['Done', `<p>${pl(n, 'quotient')} → <b>${B} bits</b>: ${F.hdr.length} header + ${F.body.length} point.</p><p>The cylinder width alone costs −log₂ w = ${ideal.toFixed(2)} bits, so picking a point added ${(F.body.length - ideal).toFixed(2)}. Under the Gauss–Kuzmin model the message carries ${F.gk.toFixed(2)} bits (a typical quotient: ${GK_ENTROPY.toFixed(4)}).</p><p>Switch to <b>Decode</b> to watch this code turn back into the quotients.</p>`];
+    }
+  }
+}
+
+function narrateDec(F) {
+  const bits = tr.bits;
+  switch (F.kind) {
+    case 'header': return ['Read the length header', `<p>Elias gamma: ${pl(F.z, 'leading zero')}, then ${F.z + 1} bits <code>${bits.slice(F.z, 2 * F.z + 1).join('')}</code> = ${F.N}. So <b>n = N − 1 = ${F.n}</b> quotients follow.</p>`];
+    case 'point': return ['Read the point', `<p>The remaining ${pl(F.j, 'bit')} are the binary digits of <code>x = 0.${bits.slice(F.pos - F.j).join('')}₂ = ${fr(F.m, 1n << BigInt(F.j))}</code>${F.j > 12 ? ` ≈ ${fmtNum(F.xv)}` : ''}.</p><p>The decoder runs the Gauss map on this exact rational. It starts with t = x and the whole of [0, 1) as the cylinder.</p>`];
+    case 'split': return [`t lies in piece a = ${F.a}`, `<p><code>t = ${fr(F.tn, F.td)}</code>, so <code>1/t = ${fr(F.td, F.tn)} = ${F.a} + ${fr(F.r, F.tn)}</code>.</p><p>The integer part <b>a = ${F.a}</b> is the next quotient: t ∈ (1/${F.a + 1}, 1/${F.a}]. On the real line x sits in the matching piece of the cylinder.</p>`];
+    case 'narrow': return [`Output ${F.a}`, `<p>Decoded so far: <b>${cfs(F.dec)}</b>.</p><p>Gauss map: <code>t ← 1/t − ${F.a} = ${F.r === 0n ? '0' : fr(F.r, F.ptn)}</code>. The cylinder narrows exactly as the encoder's did, and x stays inside it.</p>`];
+    case 'done': return F.ok
+      ? ['Done', `<p>Decoded <b>${cfs(F.dec)}</b> (${pl(F.dec.length, 'quotient')}) from ${pl(bits.length, 'bit')}.</p>${msg && F.dec.join() === msg.join() ? '<p>It matches the encoded message.</p>' : ''}${msg && msgText ? `<p>As bytes − 1: <b>"${msgText}"</b>.</p>` : ''}`]
+      : ['Stopped', `<p>${F.why}</p><p>This code was not produced by <code>cf_encode</code>.</p>`];
+  }
+}
+
+const PHASE = { start: 'init', split: 'split', narrow: 'narrow', grid: 'dyadic point', final: 'emit', done: 'result', header: 'gamma', point: 'point' };
+
+function chipsMsg(q, curI, doneN) {
+  return q.map((a, j) => `<span class="${j === curI ? 'cur' : j < doneN ? 'done' : ''}" style="background:${SV(a)}">${a}</span>`).join('');
+}
+
+function updatePanels() {
+  const F = tr.frames[cur], lv = F.lv;
+  const [title, html] = mode === 'enc' ? narrateEnc(F) : narrateDec(F);
+  $('stepNo').textContent = `step ${cur + 1} / ${tr.frames.length}`;
+  $('phase').textContent = PHASE[F.kind];
+  $('nTitle').textContent = title;
+  $('nText').innerHTML = html;
+  const nb = Math.min(40, F.set ? F.set.length + 8 : 12);
+  const fmtB = (n, d) => { const b = binOf(n, d, nb); const p = F.set ? Math.min(F.set.length, nb) : 0; return `<span class="bits">0.<span class="pre">${b.slice(0, p)}</span>${b.slice(p)}…</span>`; };
+  let kv = `<dt>cylinder</dt><dd>${cfs(mode === 'enc' ? msg.slice(0, lv.n) : F.dec)}</dd>` +
+    `<dt class="cl">lo</dt><dd>${fr(lv.ln, lv.ld)}</dd><dt class="cr">hi</dt><dd>${fr(lv.hn, lv.hd)}</dd>`;
+  if (mode === 'enc') {
+    kv += `<dt class="cl">lo₂</dt><dd>${fmtB(lv.ln, lv.ld)}</dd><dt class="cr">hi₂</dt><dd>${fmtB(lv.hn, lv.hd)}</dd>`;
+  } else if (F.xv !== undefined) {
+    kv += `<dt>t</dt><dd>${fr(F.tn, F.td)}</dd>`;
+  }
+  kv += `<dt>width</dt><dd>${widthTxt(lv.lw)}</dd><dt>cost</dt><dd>${(-lv.lw).toFixed(2)} bits</dd>`;
+  $('kv').innerHTML = kv;
+
+  let o = '';
+  if (mode === 'enc') {
+    if (F.hdr) {
+      const isNew = F.kind === 'final';
+      o = F.hdr.map(b => `<span class="chip hdr${isNew ? ' new' : ''}">${b}</span>`).join('') + F.body.map(b => `<span class="chip${isNew ? ' new' : ''}">${b}</span>`).join('');
+      $('pendNote').textContent = `Blue: gamma header for n + 1 = ${msg.length + 1}. Then the point's ${F.body.length} bits.`;
+    } else {
+      o = [...F.set].map(b => `<span class="chip pend">${b}</span>`).join('');
+      $('pendNote').textContent = F.set ? `Dashed: leading bits of every point of the cylinder, already settled. The coder writes them at the end, after the header.` : '';
+    }
+    $('outH').textContent = 'Output bits';
+  } else {
+    const bits = tr.bits;
+    for (let j = 0; j < bits.length; j++) {
+      const cls = j >= F.pos ? '' : j >= F.pos - F.read ? ' new' : ' used';
+      o += `<span class="chip${j < F.hdrLen ? ' hdr' : ''}${cls}">${bits[j]}</span>`;
+    }
+    $('pendNote').textContent = F.pos ? `Read ${F.pos} of ${bits.length}. Blue: gamma header.` : '';
+    $('outH').textContent = 'Input bits';
+  }
+  $('out').innerHTML = o || `<span style="color:var(--muted);font-size:13px">no settled bits yet</span>`;
+
+  if (mode === 'enc') {
+    $('msgH').textContent = 'Message';
+    const doneN = F.kind === 'split' ? F.t : lv.n;
+    $('msgView').innerHTML = chipsMsg(msg, F.kind === 'split' || F.kind === 'narrow' ? F.t : -1, doneN);
+  } else {
+    $('msgH').textContent = 'Decoded';
+    const d = F.dec;
+    $('msgView').innerHTML = d.length ? chipsMsg(d, F.kind === 'narrow' ? d.length - 1 : -1, d.length) : '<span class="none">nothing yet</span>';
+  }
+  $('scrub').value = cur;
+}
+
+function go(i, animate) {
+  cur = clamp(i, 0, tr.frames.length - 1);
+  prog = animate && !reduce ? 0 : 1;
+  updatePanels(); render();
+}
+const speed = () => +$('speed').value;
+function tick(ts) {
+  if (frozen) return;
+  const dt = last ? Math.min(100, ts - last) : 16; last = ts;
+  if (prog < 1) {
+    const dur = (tr.frames[cur].kind === 'narrow' ? 1300 : 700) / speed();
+    prog = Math.min(1, prog + dt / dur); render();
+  } else if (playing) {
+    dwell += dt;
+    if (dwell > 1700 / speed()) {
+      dwell = 0;
+      if (cur < tr.frames.length - 1) go(cur + 1, true); else setPlay(false);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+function setPlay(p) {
+  playing = p; dwell = 0;
+  $('playBtn').textContent = p ? '❚❚ Pause' : '▶ Play';
+  if (p && cur === tr.frames.length - 1) go(0, false);
+}
+
+let msgText = null;
+function readMsg() {
+  const raw = $('msgIn').value.trim();
+  msgText = null;
+  let q;
+  const m = raw.match(/^["“](.*)["”]$/);
+  if (m) {
+    if (!m[1]) { $('err').textContent = 'The text is empty.'; return null; }
+    q = [...new TextEncoder().encode(m[1])].map(b => b + 1);
+    msgText = m[1];
+  } else {
+    const parts = raw.split(/[\s,;]+/).filter(Boolean);
+    if (!parts.length || parts.some(p => !/^\d+$/.test(p) || +p < 1)) { $('err').textContent = 'Type quotients as whole numbers ≥ 1, like 3 1 4 1 5, or text in quotes, like "Hi".'; return null; }
+    q = parts.map(Number);
+  }
+  if (q.length > 16) { $('err').textContent = `${q.length} quotients is too many to animate; keep it to 16.`; return null; }
+  if (q.some(a => a > 1e6)) { $('err').textContent = 'Keep each quotient at most 1,000,000.'; return null; }
+  return q;
+}
+function fillCode() {
+  const q = readMsg(); if (!q) return false;
+  $('codeIn').value = buildEncodeTrace(q).bits.join('');
+  $('codeIn').dataset.edited = '';
+  return true;
+}
+function load() {
+  $('err').textContent = '';
+  const q = readMsg(); if (!q) return false;
+  msg = q;
+  if (mode === 'enc') tr = buildEncodeTrace(msg);
+  else {
+    const raw = $('codeIn').value.replace(/\s/g, '');
+    if (!/^[01]+$/.test(raw)) { $('err').textContent = 'The code may only contain the digits 0 and 1.'; return false; }
+    if (raw !== buildEncodeTrace(msg).bits.join('')) { msg = null; msgText = null; }
+    tr = buildDecodeTrace([...raw].map(Number), 40);
+  }
+  $('scrub').max = tr.frames.length - 1;
+  const rows = [1, 2, 3, 4, 5, 6, 7, 8];
+  for (const a of (msg || [])) if (!rows.includes(a)) rows.push(a);
+  rows.sort((x, y) => x - y);
+  $('model').innerHTML = rows.map(a => `<tr><td><span class="sw" style="background:${SV(a)}"></span>${a}</td><td class="m">(1/${a + 1}, 1/${a}]</td><td>${gkProb(a).toPrecision(4)}</td><td>${(-Math.log2(gkProb(a))).toFixed(2)}</td></tr>`).join('') +
+    `<tr><td colspan="4" style="color:var(--muted);font-size:13px">Mean cost of a Gauss–Kuzmin quotient: π²/(6 ln² 2) ≈ ${GK_ENTROPY.toFixed(4)} bits.</td></tr>`;
+  go(0, false);
+  return true;
+}
+function setMode(m) {
+  mode = m;
+  $('mEnc').setAttribute('aria-pressed', m === 'enc');
+  $('mDec').setAttribute('aria-pressed', m === 'dec');
+  $('codeField').hidden = m !== 'dec';
+  $('fillBtn').hidden = m !== 'dec';
+  $('xLegend').hidden = m !== 'dec';
+  $('ptLegend').hidden = m !== 'enc';
+  if (m === 'dec' && $('codeIn').dataset.edited !== '1' && !fillCode()) return;
+  setPlay(false); load();
+}
+function randGK() {
+  const out = [];
+  for (let i = 0; i < 6; i++) { const t = 2 ** Math.random(); out.push(Math.max(Math.ceil(2 * (t - 1) / (2 - t)), 1)); }
+  return out.join(' ');
+}
+
+$('mEnc').onclick = () => setMode('enc');
+$('mDec').onclick = () => setMode('dec');
+$('preset').onchange = e => {
+  const v = e.target.value; if (!v) return;
+  $('msgIn').value = v === 'gk' ? randGK() : v;
+  e.target.value = '';
+  $('codeIn').dataset.edited = '';
+  $('runBtn').click();
+};
+$('fillBtn').onclick = () => { if (fillCode()) { setPlay(false); load(); } };
+$('runBtn').onclick = () => {
+  setPlay(false);
+  if (mode === 'dec' && $('codeIn').dataset.edited !== '1') fillCode();
+  if (load()) setPlay(true);              // apply the inputs and play from the start
+};
+$('codeIn').addEventListener('input', () => { $('codeIn').dataset.edited = '1'; });
+$('msgIn').addEventListener('input', () => { $('codeIn').dataset.edited = ''; });
+for (const id of ['msgIn', 'codeIn']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('runBtn').click(); });
+$('playBtn').onclick = () => setPlay(!playing);
+$('fwdBtn').onclick = () => { setPlay(false); go(cur + 1, true); };
+$('backBtn').onclick = () => { setPlay(false); go(cur - 1, false); };
+$('resetBtn').onclick = () => { setPlay(false); go(0, false); };
+$('scrub').oninput = e => { setPlay(false); go(+e.target.value, false); };
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowRight') { setPlay(false); go(cur + 1, true); }
+  else if (e.key === 'ArrowLeft') { setPlay(false); go(cur - 1, false); }
+  else if (e.key === ' ') { e.preventDefault(); setPlay(!playing); }
+});
+drawStatic();
+load();
+requestAnimationFrame(tick);
+
+// ?shot=enc|dec,FRAME,PROGRESS renders one still frame (used to record docs/img/*.gif); &msg=… sets the message
+(function () {
+  const ps = new URLSearchParams(location.search);
+  if (ps.get('msg')) { $('msgIn').value = ps.get('msg'); load(); }
+  const q = ps.get('shot');
+  if (!q) return;
+  const [m, f, p] = q.split(',');
+  frozen = true;
+  document.documentElement.classList.add('capture');
+  document.documentElement.dataset.theme = 'light';
+  if (m === 'dec') setMode('dec');
+  if (f === 'count') { document.title = 'frames:' + tr.frames.length; return; }
+  cur = +f; prog = 1; updatePanels(); prog = +p; render();
+})();
+</script>
