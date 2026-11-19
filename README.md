@@ -22,6 +22,26 @@ do continued fractions: the reals whose expansion starts with quotients
 - **Decoder**: reconstructs the dyadic rational and extracts the quotients
   by iterating the Gauss map in exact `BigInt` arithmetic.
 
+## Animation
+
+Click an animation to open the interactive version, where you can step back and forth, type your own
+quotients (or text in quotes) or code, and try the π, e and golden-ratio examples. It is also listed at
+<https://ayarodionov.github.io/ContinuedFractionCoding.jl/>.
+
+<table>
+<tr><th>Encode</th><th>Decode</th></tr>
+<tr>
+<td><a href="https://ayarodionov.github.io/ContinuedFractionCoding.jl/cf.html"><img src="docs/img/cf-enc.gif" alt="Continued-fraction encoder animation" width="400"></a></td>
+<td><a href="https://ayarodionov.github.io/ContinuedFractionCoding.jl/cf.html"><img src="docs/img/cf-dec.gif" alt="Continued-fraction decoder animation" width="400"></a></td></tr>
+</table>
+
+The top bar is `[0, 1)` with the current cylinder; the middle bar magnifies the cylinder, split into one
+piece per possible next quotient; the bottom bar is the Gauss coordinate `t = T^n(x)`, where quotient `a`
+always owns `(1/(a+1), 1/a]`. The grey lines carry each piece from `t` to `x` and cross at odd depth, where
+the order flips. Encoding ends by picking the dyadic point and writing the Elias-gamma header and its bits;
+decoding reads them and runs the Gauss map. The page is plain HTML with no build step, so it also works when
+opened from a clone (`docs/cf.html`).
+
 ## Why this is (only) a fixed code
 
 By the Lévy and Rokhlin/Gauss–Kuzmin theorems, a CF digit of a
